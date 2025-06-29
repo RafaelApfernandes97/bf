@@ -1,0 +1,14 @@
+# Copie este conteúdo para o arquivo .env na raiz do projeto:
+
+# Configurações do MinIO
+MINIO_ENDPOINT=http://localhost:9000
+MINIO_ACCESS_KEY=your_access_key
+MINIO_SECRET_KEY=your_secret_key
+MINIO_BUCKET=fotos
+
+# Configurações do Redis
+REDIS_URL=redis://default:Rfernandes2112@@37.60.224.137:3058
+
+# Configurações do Servidor
+PORT=3001
+NODE_ENV=development 

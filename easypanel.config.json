@@ -1,0 +1,94 @@
+{
+  "name": "site-fotos",
+  "description": "Sistema de fotos com login Google e MinIO",
+  "version": "1.0.0",
+  "type": "application",
+  "services": [
+    {
+      "name": "backend",
+      "type": "nodejs",
+      "port": 3001,
+      "build": {
+        "command": "npm install",
+        "output": "."
+      },
+      "start": {
+        "command": "npm start"
+      },
+      "env": {
+        "NODE_ENV": "production",
+        "PORT": "3001",
+        "MINIO_ENDPOINT": "https://seu-minio-endpoint.com",
+        "MINIO_ACCESS_KEY": "sua_access_key",
+        "MINIO_SECRET_KEY": "sua_secret_key",
+        "MINIO_BUCKET": "fotos",
+        "REDIS_URL": "redis://default:sua_senha@seu_redis_host:porta",
+        "GOOGLE_CLIENT_ID": "seu_google_client_id",
+        "JWT_SECRET": "sua_chave_secreta_jwt",
+        "MONGODB_URI": "mongodb://usuario:senha@host:porta/database"
+      },
+      "volumes": [
+        {
+          "source": "./uploads",
+          "target": "/app/uploads"
+        }
+      ],
+      "healthcheck": {
+        "path": "/health",
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3
+      }
+    },
+    {
+      "name": "frontend",
+      "type": "static",
+      "build": {
+        "command": "cd frontend-fotos && npm install && npm run build",
+        "output": "frontend-fotos/build"
+      },
+      "serve": {
+        "directory": "frontend-fotos/build",
+        "spa": true
+      },
+      "env": {
+        "REACT_APP_API_URL": "https://api.seudominio.com"
+      }
+    }
+  ],
+  "domains": [
+    {
+      "name": "api.seudominio.com",
+      "service": "backend",
+      "path": "/api",
+      "ssl": true
+    },
+    {
+      "name": "app.seudominio.com",
+      "service": "frontend",
+      "ssl": true
+    }
+  ],
+  "environment": {
+    "production": {
+      "NODE_ENV": "production",
+      "MINIO_ENDPOINT": "https://seu-minio-endpoint.com",
+      "REDIS_URL": "redis://default:sua_senha@seu_redis_host:porta",
+      "GOOGLE_CLIENT_ID": "seu_google_client_id_producao"
+    },
+    "staging": {
+      "NODE_ENV": "staging",
+      "MINIO_ENDPOINT": "https://staging-minio-endpoint.com",
+      "REDIS_URL": "redis://default:sua_senha@staging_redis_host:porta",
+      "GOOGLE_CLIENT_ID": "seu_google_client_id_staging"
+    }
+  },
+  "deploy": {
+    "auto": true,
+    "branch": "main",
+    "preview": {
+      "enabled": true,
+      "branch": "develop"
+    }
+  }
+} 

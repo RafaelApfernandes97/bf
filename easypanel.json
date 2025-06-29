@@ -1,0 +1,52 @@
+{
+  "name": "site-fotos",
+  "description": "Sistema de fotos com login Google",
+  "version": "1.0.0",
+  "type": "application",
+  "services": [
+    {
+      "name": "backend",
+      "type": "nodejs",
+      "port": 3001,
+      "build": {
+        "command": "npm install",
+        "output": "."
+      },
+      "start": {
+        "command": "npm start"
+      },
+      "env": {
+        "NODE_ENV": "production",
+        "PORT": "3001"
+      },
+      "volumes": [
+        {
+          "source": "./uploads",
+          "target": "/app/uploads"
+        }
+      ]
+    },
+    {
+      "name": "frontend",
+      "type": "static",
+      "build": {
+        "command": "cd frontend-fotos && npm install && npm run build",
+        "output": "frontend-fotos/build"
+      },
+      "serve": {
+        "directory": "frontend-fotos/build"
+      }
+    }
+  ],
+  "domains": [
+    {
+      "name": "api",
+      "service": "backend",
+      "path": "/api"
+    },
+    {
+      "name": "app",
+      "service": "frontend"
+    }
+  ]
+} 
