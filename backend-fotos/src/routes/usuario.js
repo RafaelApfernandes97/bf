@@ -1,15 +1,12 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { OAuth2Client } = require('google-auth-library');
 const Usuario = require('../models/usuario');
 const Pedido = require('../models/pedido');
 const { sendOrderSummary } = require('../services/evolutionapi');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'segredo123';
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 function validarEmail(email) {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
@@ -72,60 +69,6 @@ router.post('/login', async (req, res) => {
   if (!ok) return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
   const token = jwt.sign({ id: user._id, email: user.email, nome: user.nome }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, nome: user.nome });
-});
-
-// Login com Google
-router.post('/google-login', async (req, res) => {
-  try {
-    const { credential } = req.body;
-    if (!credential) {
-      return res.status(400).json({ error: 'Credencial do Google não fornecida.' });
-    }
-
-    // Verificar o token do Google
-    const ticket = await googleClient.verifyIdToken({
-      idToken: credential,
-      audience: GOOGLE_CLIENT_ID
-    });
-
-    const payload = ticket.getPayload();
-    const { email, name, picture } = payload;
-
-    // Verificar se o usuário já existe
-    let user = await Usuario.findOne({ email });
-    
-    if (!user) {
-      // Criar novo usuário se não existir
-      user = await Usuario.create({
-        email,
-        nome: name,
-        googleId: payload.sub,
-        // Campos obrigatórios vazios para usuários do Google
-        cpfCnpj: '',
-        telefone: '',
-        isGoogleUser: true
-      });
-    } else {
-      // Atualizar informações do usuário existente se necessário
-      if (!user.googleId) {
-        user.googleId = payload.sub;
-        user.isGoogleUser = true;
-        await user.save();
-      }
-    }
-
-    // Gerar token JWT
-    const token = jwt.sign(
-      { id: user._id, email: user.email, nome: user.nome },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    res.json({ token, nome: user.nome });
-  } catch (error) {
-    console.error('Erro no login com Google:', error);
-    res.status(500).json({ error: 'Erro na autenticação com Google.' });
-  }
 });
 
 // Rota para obter dados do usuário autenticado
