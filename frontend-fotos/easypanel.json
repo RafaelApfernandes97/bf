@@ -1,0 +1,15 @@
+{
+  "name": "frontend-fotos",
+  "type": "static",
+  "build": {
+    "command": "npm install && npm run build",
+    "output": "build"
+  },
+  "serve": {
+    "directory": "build",
+    "spa": true
+  },
+  "env": {
+    "REACT_APP_API_URL": "https://api.seudominio.com"
+  }
+} 
