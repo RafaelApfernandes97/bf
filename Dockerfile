@@ -15,9 +15,6 @@ RUN npm ci --only=production
 # Copiar código fonte do backend
 COPY . .
 
-# Verificar se os arquivos foram copiados
-RUN ls -la /app/frontend-fotos/
-
 # Instalar dependências do frontend e fazer build
 WORKDIR /app/frontend-fotos
 RUN npm install
