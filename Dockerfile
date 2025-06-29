@@ -18,7 +18,7 @@ COPY . .
 # Instalar dependências do frontend e fazer build
 WORKDIR /app/frontend-fotos
 RUN npm install
-RUN npm run build
+RUN npx react-scripts build
 
 # Voltar para o diretório raiz
 WORKDIR /app
