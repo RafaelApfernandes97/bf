@@ -8,7 +8,7 @@ RUN apk add --no-cache git
 FROM builder AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend-fotos/package*.json ./
-RUN npm ci
+RUN npm install
 COPY frontend-fotos/ .
 RUN npm run build
 
