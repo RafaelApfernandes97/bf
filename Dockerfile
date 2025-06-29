@@ -7,7 +7,8 @@ RUN apk add --no-cache git
 # Stage 1: Build do frontend
 FROM builder AS frontend-builder
 WORKDIR /app/frontend
-COPY frontend-fotos/package*.json ./
+COPY frontend-fotos/package.json ./
+COPY frontend-fotos/package-lock.json* ./
 RUN npm install
 COPY frontend-fotos/ .
 RUN npm run build
