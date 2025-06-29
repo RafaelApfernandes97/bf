@@ -1,22 +1,7 @@
-# Multi-stage build para otimizar o tamanho da imagem
-FROM node:18-alpine AS builder
+FROM node:18-alpine
 
 # Instalar dependências do sistema
 RUN apk add --no-cache git
-
-# Stage 1: Build do frontend
-FROM builder AS frontend-builder
-WORKDIR /app/frontend
-COPY frontend-fotos/ ./
-RUN npm install
-RUN npm run build
-
-# Stage 2: Build final
-FROM node:18-alpine AS production
-
-# Criar usuário não-root para segurança
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
 
 # Criar diretório da aplicação
 WORKDIR /app
@@ -24,23 +9,22 @@ WORKDIR /app
 # Copiar package.json e package-lock.json do backend
 COPY package*.json ./
 
-# Instalar dependências do backend (incluindo axios)
+# Instalar dependências do backend
 RUN npm ci --only=production
 
 # Copiar código fonte do backend
 COPY . .
 
-# Copiar build do frontend
-COPY --from=frontend-builder /app/frontend/build ./frontend-fotos/build
+# Instalar dependências do frontend e fazer build
+WORKDIR /app/frontend-fotos
+RUN npm install
+RUN npm run build
+
+# Voltar para o diretório raiz
+WORKDIR /app
 
 # Criar diretório para uploads
 RUN mkdir -p uploads
-
-# Mudar propriedade dos arquivos para o usuário nodejs
-RUN chown -R nodejs:nodejs /app
-
-# Mudar para usuário não-root
-USER nodejs
 
 # Expor porta
 EXPOSE 3001
