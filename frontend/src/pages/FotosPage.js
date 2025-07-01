@@ -2,10 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import CoreografiaTop from '../components/CoreografiaTop';
 import './FotosPage.css';
+import '../CoreografiasBody.css';
 import { useCart } from '../components/CartContext';
 import CartBtn from '../components/CartBtn';
+import SquareArrowLeft from '../assets/icons/square_arrow_left_line.svg';
+import SquareArrowRight from '../assets/icons/square_arrow_right_line.svg';
+import LeftFill from '../assets/icons/left_fill.svg';
+import ShoppingCart2Line from '../assets/icons/shopping_cart_2_line.svg';
+import CalendarIcon from '../assets/icons/calendar_fill.svg';
+import LocationIcon from '../assets/icons/location_on.svg';
+import CameraIcon from '../assets/icons/Camera.svg';
 
-function FotosPage() {
+const BACKEND_URL = 'https://backend.rfsolutionbr.com.br';
+
+function FotosPage({ setShowCart }) {
   const { eventoId, coreografiaId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -16,10 +26,11 @@ function FotosPage() {
   const { cart, addToCart, removeFromCart } = useCart();
   const [evento, setEvento] = useState(null);
   const [tabelaPreco, setTabelaPreco] = useState(null);
+  const [tabelas, setTabelas] = useState([]);
 
   // Buscar todas as coreografias do evento para navegação
   useEffect(() => {
-    fetch(`http://localhost:3001/api/eventos/${encodeURIComponent(eventoId)}/coreografias`)
+    fetch(`${BACKEND_URL}/api/eventos/${encodeURIComponent(eventoId)}/coreografias`)
       .then(res => res.json())
       .then(data => {
         setCoreografias(data.coreografias || []);
@@ -29,10 +40,26 @@ function FotosPage() {
   // Buscar fotos da coreografia
   useEffect(() => {
     setLoading(true);
-    fetch(`http://localhost:3001/api/eventos/${encodeURIComponent(eventoId)}/${encodeURIComponent(coreografiaId)}/fotos`)
+    fetch(`${BACKEND_URL}/api/eventos/${encodeURIComponent(eventoId)}/${encodeURIComponent(coreografiaId)}/fotos`)
       .then(res => res.json())
-      .then(data => {
-        setFotos(data.fotos || []);
+      .then(async data => {
+        const token = localStorage.getItem('user_token');
+        const fotosComUrls = await Promise.all(
+          (data.fotos || []).map(async (foto) => {
+            try {
+              const res = await fetch(
+                `${BACKEND_URL}/api/usuarios/foto-url/${encodeURIComponent(eventoId)}/${encodeURIComponent(coreografiaId)}/${encodeURIComponent(foto.nome)}`,
+                { headers: { Authorization: 'Bearer ' + token } }
+              );
+              if (res.ok) {
+                const d = await res.json();
+                return { ...foto, url: d.url };
+              }
+            } catch {}
+            return { ...foto, url: '' };
+          })
+        );
+        setFotos(fotosComUrls);
         setLoading(false);
       })
       .catch(err => {
@@ -50,7 +77,7 @@ function FotosPage() {
         .replace(/\s+/g, ' ') // normaliza espaços
         .trim();
     }
-    fetch(`http://localhost:3001/api/admin/eventos`)
+    fetch(`${BACKEND_URL}/api/admin/eventos`)
       .then(res => res.json())
       .then(async data => {
         // Encontrar o evento pelo nome (ignorando case, acentos e espaços)
@@ -62,11 +89,17 @@ function FotosPage() {
           setTabelaPreco(ev.tabelaPrecoId);
         } else {
           // Buscar tabela default
-          const resTabela = await fetch('http://localhost:3001/api/admin/tabelas-preco');
-          const tabelas = await resTabela.json();
-          const tabelaDefault = Array.isArray(tabelas) ? tabelas.find(t => t.isDefault) : null;
+          const resTabela = await fetch(`${BACKEND_URL}/api/admin/tabelas-preco`);
+          const tabelasData = await resTabela.json();
+          setTabelas(tabelasData);
+          const tabelaDefault = Array.isArray(tabelasData) ? tabelasData.find(t => t.isDefault) : null;
           setTabelaPreco(tabelaDefault || null);
         }
+        setLoading(false);
+      })
+      .catch(() => {
+        setError('Erro ao carregar dados do evento');
+        setLoading(false);
       });
   }, [eventoId]);
 
@@ -119,13 +152,13 @@ function FotosPage() {
         <div className="coreografia-nav">
           {coreografiaAnterior && (
             <button className="nav-btn" onClick={() => navigate(`/eventos/${eventoId}/${encodeURIComponent(coreografiaAnterior.nome)}/fotos`)}>
-              &#8592;
+              <img src={SquareArrowLeft} alt="Anterior" width={24} height={24} />
             </button>
           )}
           <span className="coreografia-nav-nome">{coreografiaId}</span>
           {coreografiaProxima && (
             <button className="nav-btn" onClick={() => navigate(`/eventos/${eventoId}/${encodeURIComponent(coreografiaProxima.nome)}/fotos`)}>
-              &#8594;
+              <img src={SquareArrowRight} alt="Próxima" width={24} height={24} />
             </button>
           )}
         </div>
@@ -143,7 +176,6 @@ function FotosPage() {
             fontWeight: 500,
             cursor: 'pointer',
             padding: 0,
-            
           }}
         >
           <span style={{
@@ -156,17 +188,18 @@ function FotosPage() {
             border: '2px solid #888',
             marginRight: 8,
           }}>
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="9" cy="9" r="8" stroke="#888" strokeWidth="2" fill="none"/>
-              <path d="M10.5 6L7.5 9L10.5 12" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            <img src={LeftFill} alt="Voltar" width={18} height={18} />
           </span>
           Voltar a página anterior
         </button>
         <div style={{ position: 'absolute', top: 16, right: 16 }}>
           <div style={{ position: 'relative' }}>
             <div style={{ cursor: 'pointer' }}>
-              <CartBtn />
+              <CartBtn
+                onClick={() => setShowCart(true)}
+                style={{ marginLeft: 16, background: 'none', border: 'none', boxShadow: 'none', padding: 0 }}
+                icon={<img src={ShoppingCart2Line} alt="Carrinho" width={24} height={24} />}
+              />
               {cart.length > 0 && (
                 <span style={{
                   position: 'absolute',

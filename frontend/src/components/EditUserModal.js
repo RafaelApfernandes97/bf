@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './LoginModal.css';
 
+const BACKEND_URL = 'https://backend.rfsolutionbr.com.br';
+
 function maskCpfCnpj(value) {
   value = value.replace(/\D/g, '');
   if (value.length <= 11) {
@@ -84,7 +86,7 @@ export default function EditUserModal({ onClose }) {
       setErro('');
       try {
         const token = localStorage.getItem('user_token');
-        const res = await fetch('http://localhost:3001/api/usuarios/me', {
+        const res = await fetch(`${BACKEND_URL}/api/usuarios/me`, {
           headers: { 'Authorization': 'Bearer ' + token }
         });
         if (!res.ok) throw new Error('Erro ao buscar dados do usuário');
@@ -129,7 +131,7 @@ export default function EditUserModal({ onClose }) {
     setSucesso(false);
     try {
       const token = localStorage.getItem('user_token');
-      const res = await fetch('http://localhost:3001/api/usuarios/me', {
+      const res = await fetch(`${BACKEND_URL}/api/usuarios/me`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -189,10 +191,10 @@ export default function EditUserModal({ onClose }) {
   }
 
   return (
-    <div className="login-modal-overlay">
-      <div className="login-modal-container edit-user-modal">
-        <button className="login-modal-close" onClick={onClose}>&times;</button>
-        <h2>Meus Dados</h2>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content edit-user-modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: '0.5rem' }}>
+        <button className="close-btn" onClick={onClose}>✕</button>
+        <div className="pedidos-modal-title-left">Meus Dados</div>
         {loading ? (
           <div className="edit-user-loading">Carregando...</div>
         ) : erro && !sucesso ? (

@@ -1,12 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './PedidosModal.css';
 import { useCart } from './CartContext';
+
+const BACKEND_URL = 'https://backend.rfsolutionbr.com.br';
+const MINIO_ENDPOINT = 'https://balletemfoco-minio.ul08ww.easypanel.host';
+const MINIO_BUCKET = 'balletemfoco';
+
+async function buscarUrlAssinada(evento, coreografia, nome) {
+  try {
+    console.log('[Frontend] Buscando URL assinada para:', { evento, coreografia, nome });
+    
+    const token = localStorage.getItem('user_token');
+    const url = `${BACKEND_URL}/api/usuarios/foto-url/${encodeURIComponent(evento)}/${encodeURIComponent(coreografia)}/${encodeURIComponent(nome)}`;
+    console.log('[Frontend] URL da requisição:', url);
+    
+    const res = await fetch(url, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    
+    console.log('[Frontend] Status da resposta:', res.status);
+    
+    if (!res.ok) throw new Error('Erro ao buscar URL da foto');
+    const data = await res.json();
+    console.log('[Frontend] Resposta recebida:', data);
+    
+    return data.url;
+  } catch (e) {
+    console.error('Erro ao buscar URL assinada:', e);
+    return null;
+  }
+}
+
+function montarUrlPublica(evento, coreografia, nome) {
+  return `${MINIO_ENDPOINT}/${MINIO_BUCKET}/${encodeURIComponent(evento)}/${encodeURIComponent(coreografia)}/${encodeURIComponent(nome)}`;
+}
 
 export default function PedidosModal({ onClose }) {
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const { addToCart } = useCart();
+  const [expandedId, setExpandedId] = useState(null);
+  const [fotoExpandida, setFotoExpandida] = useState(null);
 
   useEffect(() => {
     async function fetchPedidos() {
@@ -14,12 +49,32 @@ export default function PedidosModal({ onClose }) {
       setErro('');
       try {
         const token = localStorage.getItem('user_token');
-        const res = await fetch('http://localhost:3001/api/usuarios/meus-pedidos', {
+        const res = await fetch(`${BACKEND_URL}/api/usuarios/meus-pedidos`, {
           headers: { 'Authorization': 'Bearer ' + token }
         });
         if (!res.ok) throw new Error('Erro ao buscar pedidos');
         const data = await res.json();
-        setPedidos(data.pedidos || []);
+        
+        // Buscar URLs assinadas para todas as fotos
+        const pedidosComUrls = await Promise.all((data.pedidos || []).map(async pedido => {
+          const fotosComUrls = await Promise.all((pedido.fotos || []).map(async foto => {
+            let url = foto.url;
+            if (!url) {
+              // Tentar buscar URL assinada primeiro
+              const urlAssinada = await buscarUrlAssinada(pedido.evento, foto.coreografia, foto.nome);
+              if (urlAssinada) {
+                url = urlAssinada;
+              } else {
+                // Fallback para URL pública
+                url = montarUrlPublica(pedido.evento, foto.coreografia, foto.nome);
+              }
+            }
+            return { ...foto, url };
+          }));
+          return { ...pedido, fotos: fotosComUrls };
+        }));
+        
+        setPedidos(pedidosComUrls);
       } catch (e) {
         setErro('Erro ao carregar pedidos');
       }
@@ -60,16 +115,61 @@ export default function PedidosModal({ onClose }) {
     }
   }
 
-  function handleRefazerPedido(fotos) {
-    fotos.forEach(foto => addToCart(foto));
+  function handleRefazerPedido(fotos, evento) {
+    fotos.forEach(foto => addToCart({
+      ...foto,
+      evento: evento
+    }));
     onClose && onClose();
   }
 
+  function toggleExpand(id) {
+    setExpandedId(prevId => (prevId === id ? null : id));
+  }
+
+  async function recarregarUrlAssinada(pedido, foto) {
+    try {
+      const urlAssinada = await buscarUrlAssinada(pedido.evento, foto.coreografia, foto.nome);
+      if (urlAssinada) {
+        // Atualizar a URL da foto no estado
+        setPedidos(pedidosAtuais => 
+          pedidosAtuais.map(p => 
+            p._id === pedido._id 
+              ? {
+                  ...p,
+                  fotos: p.fotos.map(f => 
+                    f.nome === foto.nome && f.coreografia === foto.coreografia
+                      ? { ...f, url: urlAssinada }
+                      : f
+                  )
+                }
+              : p
+          )
+        );
+        return urlAssinada;
+      }
+    } catch (e) {
+      console.error('Erro ao recarregar URL assinada:', e);
+    }
+    return null;
+  }
+
+  function handleImageError(e, pedido, foto) {
+    // Tentar recarregar com URL assinada
+    recarregarUrlAssinada(pedido, foto).then(novaUrl => {
+      if (novaUrl) {
+        e.target.src = novaUrl;
+      } else {
+        e.target.src = '/img/sem_foto.jpg';
+      }
+    });
+  }
+
   return (
-    <div className="pedidos-modal-overlay">
-      <div className="pedidos-modal-container">
-        <button className="pedidos-modal-close" onClick={onClose}>&times;</button>
-        <h2>Meus Pedidos</h2>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <button className="close-btn" onClick={onClose}>✕</button>
+        <div className="pedidos-modal-title-left">Meus Pedidos</div>
         
         {loading ? (
           <div className="pedidos-loading">Carregando pedidos...</div>
@@ -80,34 +180,69 @@ export default function PedidosModal({ onClose }) {
         ) : (
           <div className="pedidos-list">
             {pedidos.map(pedido => (
-              <div key={pedido._id} className="pedido-item">
-                <div className="pedido-header">
-                  <div className="pedido-id">#{pedido.pedidoId}</div>
+              <div key={pedido._id} className="pedido-item-resumo">
+                <div className="pedido-header-resumo">
+                  <div className="pedido-id-resumo font-inter">Pedido #{pedido.pedidoId}</div>
+                  <div className="pedido-data-resumo font-inter">Realizado em {formatarData(pedido.dataCriacao)}</div>
                 </div>
-                <div className="pedido-info">
-                  <div className="pedido-event">Evento: {pedido.evento}</div>
-                  <div className="pedido-date">Data: {formatarData(pedido.dataCriacao)}</div>
-                  <div className="pedido-value">Total: {formatarValor(pedido.valorTotal)}</div>
-                  <div className="pedido-photos">Fotos: {pedido.fotos.length}</div>
+                <div className="pedido-info-resumo">
+                  <div className="pedido-info-row">
+                    <div className="font-inter pedido-info-label">Itens ({pedido.fotos.length})</div>
+                    <div className="font-inter pedido-info-value">{formatarValor(pedido.valorUnitario * pedido.fotos.length)}</div>
+                  </div>
+                  <div className="pedido-info-row">
+                    <div className="font-inter pedido-info-label">Valor unitário</div>
+                    <div className="font-inter pedido-info-value">{formatarValor(pedido.valorUnitario)}</div>
+                  </div>
+                  <div className="pedido-info-row">
+                    <div className="font-inter pedido-info-label">Total</div>
+                    <div className="font-inter pedido-info-value pedido-info-total">{formatarValor(pedido.valorTotal)}</div>
+                  </div>
+                  <div className="pedido-info-divider" />
+                  <div className="pedido-acoes-row">
+                    <button className="visualizar-pedido-btn font-inter" onClick={() => toggleExpand(pedido._id)}>
+                      Visualizar pedido
+                    </button>
+                    <button className="refazer-pedido-btn font-inter" onClick={() => handleRefazerPedido(pedido.fotos, pedido.evento)}>
+                      Refazer pedido
+                    </button>
+                  </div>
                 </div>
-                <div className="pedido-photos-list">
-                  {pedido.fotos.map((foto, idx) => (
-                    <div key={idx} className="pedido-photo-item">
-                      <img src={foto.url} alt={foto.nome} />
-                      <div className="pedido-photo-info">
-                        <div className="pedido-photo-name">{foto.nome}</div>
-                        {foto.coreografia && (
-                          <div className="pedido-photo-coreo">{foto.coreografia}</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <button className="refazer-pedido-btn" onClick={() => handleRefazerPedido(pedido.fotos)}>
-                  Refazer pedido
-                </button>
+                {expandedId === pedido._id && (
+                  <div className="pedido-photos-list">
+                    {pedido.fotos.map((foto, idx) => {
+                      return (
+                        <div key={idx} className="pedido-photo-item" onClick={() => setFotoExpandida(foto)} style={{cursor: 'pointer'}}>
+                          <img src={foto.url || '/img/sem_foto.jpg'} alt={foto.nome} onError={(e) => handleImageError(e, pedido, foto)} />
+                          <div className="pedido-photo-info">
+                            <div className="pedido-photo-name">{foto.nome}</div>
+                            {foto.coreografia && (
+                              <div className="pedido-photo-coreo">{foto.coreografia}</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ))}
+          </div>
+        )}
+        {fotoExpandida && (
+          <div className="foto-expandida-overlay" onClick={() => setFotoExpandida(null)}>
+            <div className="foto-expandida-content" onClick={e => e.stopPropagation()}>
+              <div className="foto-expandida-img-wrapper" style={{position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%'}}>
+                <div className="foto-expandida-nome">{fotoExpandida.nome}</div>
+                <img
+                  src={fotoExpandida.url || '/img/sem_foto.jpg'}
+                  alt={fotoExpandida.nome}
+                  onError={e => e.target.src='/img/sem_foto.jpg'}
+                  className="foto-expandida-img"
+                  draggable={false}
+                />
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import './LoginModal.css';
 
+const BACKEND_URL = 'https://backend.rfsolutionbr.com.br';
+
 export default function LoginModal({ onClose, onRegisterClick, onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -12,7 +14,7 @@ export default function LoginModal({ onClose, onRegisterClick, onLoginSuccess })
     setErro('');
     setLoading(true);
     try {
-      const res = await fetch('/api/usuarios/login', {
+      const res = await fetch(`${BACKEND_URL}/api/usuarios/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, senha })
@@ -33,11 +35,11 @@ export default function LoginModal({ onClose, onRegisterClick, onLoginSuccess })
   }
 
   return (
-    <div className="login-modal-overlay">
-      <div className="login-modal-container">
-        <button className="login-modal-close" onClick={onClose}>&times;</button>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="close-btn" onClick={onClose}>✕</button>
         <h2>Entrar</h2>
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <form onSubmit={handleLogin} className="login-modal-form">
           <label>Email
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Digite seu email" required autoFocus />
           </label>

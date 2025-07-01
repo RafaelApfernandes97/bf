@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import './LoginModal.css';
 
+const BACKEND_URL = 'https://backend.rfsolutionbr.com.br';
+
 function maskCpfCnpj(value) {
   value = value.replace(/\D/g, '');
   if (value.length <= 11) {
@@ -38,7 +40,7 @@ function maskCep(value) {
   return value.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2').slice(0,9);
 }
 
-export default function RegisterModal({ onClose, onLoginClick }) {
+export default function RegisterModal({ onClose, onLoginClick, onLoginSuccess }) {
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -91,7 +93,7 @@ export default function RegisterModal({ onClose, onLoginClick }) {
     setErros({});
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/usuarios/register', {
+      const res = await fetch(`${BACKEND_URL}/api/usuarios/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, senha, nome, cpfCnpj: cpfCnpj.replace(/\D/g, ''), telefone: telefone.replace(/\D/g, ''), cep, rua, numero, bairro, cidade, estado })
@@ -99,7 +101,7 @@ export default function RegisterModal({ onClose, onLoginClick }) {
       const data = await res.json();
       if (res.ok && data.ok) {
         // Login automático após cadastro
-        const resLogin = await fetch('http://localhost:3001/api/usuarios/login', {
+        const resLogin = await fetch(`${BACKEND_URL}/api/usuarios/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, senha })
@@ -110,6 +112,7 @@ export default function RegisterModal({ onClose, onLoginClick }) {
           localStorage.setItem('user_nome', dataLogin.nome || '');
           if (onLoginClick) onLoginClick(); // fecha modal de login se aberto
           if (onClose) onClose(); // fecha modal de cadastro
+          if (onLoginSuccess) onLoginSuccess();
         } else {
           setSucesso(true); // fallback: mostra mensagem de sucesso
           setTimeout(() => {
@@ -143,9 +146,9 @@ export default function RegisterModal({ onClose, onLoginClick }) {
   }
 
   return (
-    <div className="login-modal-overlay">
-      <div className="login-modal-container register-modal">
-        <button className="login-modal-close" onClick={onClose}>&times;</button>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="close-btn" onClick={onClose}>✕</button>
         {sucesso ? (
           <h2 className="register-success">Cadastro realizado!<br/>Faça login para continuar.</h2>
         ) : (

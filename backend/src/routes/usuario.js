@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const Usuario = require('../models/usuario');
 const Pedido = require('../models/pedido');
 const { sendOrderSummary } = require('../services/evolutionapi');
+const { gerarUrlAssinada } = require('../services/minio');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'segredo123';
@@ -160,7 +161,27 @@ router.post('/enviar-pedido-whatsapp', authMiddleware, async (req, res) => {
     console.log('[WhatsApp] Pedido salvo no banco de dados');
     
     // Montar mensagem com ID do pedido
-    const mensagem = `Resumo do Pedido\n\nID do Pedido: ${pedidoId}\nEvento: ${evento}\n\nNome: ${user.nome}\nEmail: ${user.email}\nTelefone: ${user.telefone}\nCPF: ${user.cpfCnpj}\nEndereço: ${user.rua}, ${user.numero} - ${user.bairro}, ${user.cidade} - ${user.estado}, CEP: ${user.cep}\n\nImagens Selecionadas: ${fotos.length}\nValor Unitário: R$ ${valorUnitario.toFixed(2).replace('.', ',')}\nValor Total: R$ ${valorTotal.toFixed(2).replace('.', ',')}\n\nFotos:\n${fotos.map(f => `- ${f.nome}${f.coreografia ? ` (${f.coreografia})` : ''}`).join('\n')}`;
+    // Inserir caractere invisível após o @ para evitar link no WhatsApp
+    const emailTexto = user.email.replace('@', '@\u200B');
+    const mensagem = `Seu pedido foi recebido aqui no Ballet em Foco! ✨
+
+Nº do Pedido: ${pedidoId}
+Evento: ${evento}
+
+Dados para nota fiscal:
+Nome: ${user.nome}
+Email: ${emailTexto}
+Telefone: ${user.telefone}
+CPF: ${user.cpfCnpj}
+Endereço: ${user.rua}, ${user.numero} - ${user.bairro}, ${user.cidade} - ${user.estado}, CEP: ${user.cep}
+
+Fotos:
+${fotos.map(f => `- ${f.nome}${f.coreografia ? ` (${f.coreografia})` : ''}`).join('\n')}
+
+Imagens Selecionadas: ${fotos.length}
+Valor Unitário: R$ ${valorUnitario.toFixed(2).replace('.', ',')}
+
+Valor Total: R$ ${valorTotal.toFixed(2).replace('.', ',')}`;
     console.log('[WhatsApp] Mensagem montada:', mensagem);
     
     const numero = user.telefone; // O serviço evolutionapi.js adiciona o +55 automaticamente
@@ -169,6 +190,18 @@ router.post('/enviar-pedido-whatsapp', authMiddleware, async (req, res) => {
     console.log('[WhatsApp] Chamando sendOrderSummary...');
     await sendOrderSummary({ numero, mensagem });
     console.log('[WhatsApp] sendOrderSummary executado com sucesso');
+    
+    // Enviar segunda mensagem sobre forma de pagamento após 5 segundos
+    setTimeout(async () => {
+      try {
+        const mensagemPagamento = 'Qual seria a melhor forma de pagamento, cartão ou pix?';
+        console.log('[WhatsApp] Enviando mensagem sobre pagamento...');
+        await sendOrderSummary({ numero, mensagem: mensagemPagamento });
+        console.log('[WhatsApp] Mensagem sobre pagamento enviada com sucesso');
+      } catch (error) {
+        console.error('[WhatsApp] Erro ao enviar mensagem sobre pagamento:', error);
+      }
+    }, 5000);
     
     res.json({ ok: true, pedidoId: pedidoId });
   } catch (e) {
@@ -189,6 +222,26 @@ router.get('/meus-pedidos', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error('[Pedidos] Erro ao buscar pedidos:', e);
     res.status(500).json({ error: 'Erro ao buscar pedidos' });
+  }
+});
+
+// Rota para gerar URL assinada para foto do pedido
+router.get('/foto-url/:evento/:coreografia/:nome', async (req, res) => {
+  try {
+    const { evento, coreografia, nome } = req.params;
+    console.log('[Foto URL] Parâmetros recebidos:', { evento, coreografia, nome });
+    
+    const key = `${evento}/${coreografia}/${nome}`;
+    console.log('[Foto URL] Key construída:', key);
+    
+    // Gerar URL assinada válida por 1 hora
+    const urlAssinada = gerarUrlAssinada(key, 3600);
+    console.log('[Foto URL] URL assinada gerada:', urlAssinada);
+    
+    res.json({ url: urlAssinada });
+  } catch (e) {
+    console.error('[Foto URL] Erro ao gerar URL assinada:', e);
+    res.status(500).json({ error: 'Erro ao gerar URL da foto' });
   }
 });
 
