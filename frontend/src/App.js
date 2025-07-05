@@ -222,6 +222,7 @@ function App() {
           <Route path="/eventos" element={<EventosPage />} />
           <Route path="/eventos/:eventoId" element={<CoreografiasPage />} />
           <Route path="/eventos/:eventoId/:coreografiaId/fotos" element={<FotosPage setShowCart={setShowCart} />} />
+          <Route path="/eventos/:eventoId/:diaId/:coreografiaId/fotos" element={<FotosPage setShowCart={setShowCart} />} />
           <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </div>
